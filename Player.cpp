@@ -14,6 +14,9 @@ Player::Player(float startX, float startY, float floorY, SDL_Texture* texture) {
     this->jumpHeight = 400.0f;
     this->facingLeft = false;
 
+    this->health = 4;
+    this->maxHealth = 12;
+
     spriteSheet = texture;
     currentFrame = 0;
 }

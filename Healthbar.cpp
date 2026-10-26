@@ -1,9 +1,10 @@
 #include <cmath>
 #include "Healthbar.h"
 
-Healthbar::Healthbar(int HP, int maxHP, SDL_Texture* texture) {
-    this->health = HP;
-    this->maxHealth = maxHP;
+Healthbar::Healthbar(Player* player, SDL_Texture* texture) {
+    this->player = player;
+    this->health = player->health;
+    this->maxHealth = player->maxHealth;
     this->frameWidth = 145 / 5;
     this->frameHeight = 27;
     this->texture = texture;
@@ -14,6 +15,9 @@ void Healthbar::update() {
 }
 
 void Healthbar::render(SDL_Renderer* renderer) {  
+    health = player->health;
+    maxHealth = player->maxHealth;
+    
     int fullHearts = health / 4;
     int remainder = health % 4;
     int totalHearts = (maxHealth / 4) + ((maxHealth % 4) > 0);

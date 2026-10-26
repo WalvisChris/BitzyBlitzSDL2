@@ -9,6 +9,7 @@ public:
     float drag, gravity;
     float floorY;
     float jumpHeight;
+    int health, maxHealth;
     bool facingLeft;
     
     SDL_Texture* spriteSheet;

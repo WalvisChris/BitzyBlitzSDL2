@@ -7,6 +7,8 @@
 #include "Gun.h"
 #include "Healthbar.h"
 #include "Bullet.h"
+#include "Balloon.h"
+#include "Plane.h"
 
 int main(int argc, char* argv[]) {
 
@@ -70,18 +72,34 @@ int main(int argc, char* argv[]) {
     SDL_Texture* healthbarTexture = SDL_CreateTextureFromSurface(renderer, healthbarSurface);
     SDL_FreeSurface(healthbarSurface);
 
-    Healthbar* healthbar = new Healthbar(10, 12, healthbarTexture);
+    Healthbar* healthbar = new Healthbar(player, healthbarTexture);
 
     SDL_Surface* bgSurface = IMG_Load("Media/background.png");
     SDL_Texture* bgTexture = SDL_CreateTextureFromSurface(renderer, bgSurface);
     SDL_FreeSurface(bgSurface);
 
+    SDL_Surface* balloonSurface = IMG_Load("Media/balloon-sheet.png");
+    SDL_Texture* balloonTexture = SDL_CreateTextureFromSurface(renderer, balloonSurface);
+    SDL_FreeSurface(balloonSurface);
+
+    SDL_Surface* planeSurface = IMG_Load("Media/plane-sheet.png");
+    SDL_Texture* planeTexture = SDL_CreateTextureFromSurface(renderer, planeSurface);
+    SDL_FreeSurface(planeSurface);
+
     std::vector<Bullet> bullets;
-    bool r2Flag = false;
+    std::vector<Balloon> balloons;
+    std::vector<Plane> planes;
+
     bool isRunning{ true };
     SDL_Event event;
 
     Uint32 lastTime = SDL_GetTicks();
+    Uint32 balloonSpawnTimer = 0;
+    const Uint32 BALLOON_SPAWN_COOLDOWN = 3000;
+    Uint32 planeSpawnTimer = 0;
+    const Uint32 PLANE_SPAWN_COOLDOWN = 5000;
+    Uint32 shootTimer = 0;
+    const Uint32 SHOOT_RATE = 700;
 
     while (isRunning) {
         while (SDL_PollEvent(&event)) {
@@ -122,7 +140,7 @@ int main(int argc, char* argv[]) {
 
             Sint16 r2Value = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
 
-            if (r2Value > 1000 && !r2Flag) {
+            if (r2Value > 1000 && shootTimer >= SHOOT_RATE) {
                 const float PI = 3.14159265f;
                 float radians = gun->angle * (PI / 180.0f);
 
@@ -139,19 +157,30 @@ int main(int argc, char* argv[]) {
                 float startX = playerCenterX + dx * gunSteps;
                 float startY = playerCenterY + dy * gunSteps;
 
-                bullets.push_back(Bullet(startX, startY, startVX, startVY, gun->angle, 4, bulletTexture));
+                bullets.push_back(Bullet(startX, startY, gun->angle, 0, true, bulletTexture));
 
-                r2Flag = true;
-            }
-
-            if (r2Flag && r2Value < 1000) {
-                r2Flag = false;
+                shootTimer = 0;
             }
         }
 
         Uint32 currentTime = SDL_GetTicks();
+        Uint32 frameTime = currentTime - lastTime;
         float deltaTime = (currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
+
+        balloonSpawnTimer += frameTime;
+        if (balloonSpawnTimer >= BALLOON_SPAWN_COOLDOWN) {
+            if (balloons.size() < 2) { balloons.push_back(Balloon(0.0f, 20.0f, 0, balloonTexture)); }
+            balloonSpawnTimer -= BALLOON_SPAWN_COOLDOWN;
+        }
+
+        planeSpawnTimer += frameTime;
+        if (planeSpawnTimer >= PLANE_SPAWN_COOLDOWN) {
+            if (planes.size() < 2) { planes.push_back(Plane(320.0f, 240.0f, 0, player, planeTexture)); }
+            planeSpawnTimer -= PLANE_SPAWN_COOLDOWN;
+        }
+
+        if (shootTimer < SHOOT_RATE) { shootTimer += frameTime; }
 
         player->update(deltaTime);
         gun->update();
@@ -165,7 +194,6 @@ int main(int argc, char* argv[]) {
 
         player->render(renderer);
         gun->render(renderer, rightX, rightY);
-        healthbar->render(renderer);
 
         for (auto it = bullets.begin(); it != bullets.end(); ) {
             if (!it->update(deltaTime)) {
@@ -177,6 +205,86 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        for (auto it = balloons.begin(); it != balloons.end(); ) {
+            if (!it->update(deltaTime)) {
+                it = balloons.erase(it);
+            }
+            else {
+                it->render(renderer);
+                ++it;
+            }
+        }
+
+        for (auto it = planes.begin(); it != planes.end(); ) {
+            if (!it->update(deltaTime, frameTime)) {
+                it = planes.erase(it);
+            }
+            else {
+                it->render(renderer);
+                ++it;
+            }
+        }
+
+        for (auto bIt = bullets.begin(); bIt != bullets.end(); ) {
+            float bulletCenterX = bIt->x + (bIt->frameWidth / 2);
+            float bulletCenterY = bIt->y + (bIt->frameHeight / 2);
+            bool bulletHit = false;
+
+            if (bIt->isFriendly) {
+                for (auto balloonIt = balloons.begin(); balloonIt != balloons.end(); ++balloonIt) {
+                    float balloonCenterX = balloonIt->x + (balloonIt->frameWidth / 2);
+                    float balloonCenterY = balloonIt->y + (balloonIt->frameHeight / 2);
+                    float distance = std::sqrt((balloonCenterX - bulletCenterX) * (balloonCenterX - bulletCenterX) + (balloonCenterY - bulletCenterY) * (balloonCenterY - bulletCenterY));
+                    if (distance < 25) {
+                        balloonIt->health -= bIt->damage;
+                        bulletHit = true;
+                        break;
+                    }
+                }
+            }
+            else {
+                float playerCenterX = player->x + (player->width / 2);
+                float playerCenterY = player->y + (player->height / 2);
+                float distance = std::sqrt((playerCenterX - bulletCenterX) * (playerCenterX - bulletCenterX) + (playerCenterY - bulletCenterY) * (playerCenterY - bulletCenterY));
+                if (distance < 25) {
+                    player->health -= bIt->damage;
+                    if (player->health <= 0) {
+                        isRunning = false;
+                    }
+                    bulletHit = true;
+                }
+            }
+
+            if (bulletHit) {
+                bIt = bullets.erase(bIt);
+            }
+            else {
+                ++bIt;
+            }
+        }
+
+        for (auto pIt = planes.begin(); pIt != planes.end(); ++pIt) {
+            if (pIt->state == 2 && pIt->shootTimer >= pIt->shootCooldown) {
+                float planeCenterX = pIt->x + (pIt->frameWidth / 2.0f);
+                float planeCenterY = pIt->y + (pIt->frameHeight / 2.0f);
+                
+                const float PI = 3.14159265f;
+                float radians = pIt->degrees * (PI / 180.0f);
+
+                float planeSteps = 25.0f;
+                float dx = std::cos(radians) * planeSteps;
+                float dy = std::sin(radians) * planeSteps;
+
+                float startX = planeCenterX + dx;
+                float startY = planeCenterY + dy;
+
+                bullets.push_back(Bullet(startX, startY, pIt->degrees, 0, false, bulletTexture));
+                pIt->shootTimer = 0;
+            }
+        }
+
+        healthbar->render(renderer);
+
         SDL_RenderPresent(renderer);
     }
 
@@ -186,6 +294,10 @@ int main(int argc, char* argv[]) {
     if (bgTexture != nullptr) { SDL_DestroyTexture(bgTexture); }
     if (playerTexture != nullptr) { SDL_DestroyTexture(playerTexture); }
     if (gunTexture != nullptr) { SDL_DestroyTexture(gunTexture); }
+    if (balloonTexture != nullptr) { SDL_DestroyTexture(balloonTexture); }
+    if (planeTexture != nullptr) { SDL_DestroyTexture(planeTexture); }
+    if (bulletTexture != nullptr) { SDL_DestroyTexture(bulletTexture); }
+    if (healthbarTexture != nullptr) { SDL_DestroyTexture(healthbarTexture); }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
