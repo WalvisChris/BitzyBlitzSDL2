@@ -1,7 +1,7 @@
 #include <cmath>
 #include "Player.h"
 
-Player::Player(float startX, float startY, float floorY, SDL_Texture* texture) {
+Player::Player(float startX, float startY, SDL_Texture* texture) {
     this->x = startX;
     this->y = startY;
     this->vx = 0.0f;
@@ -10,7 +10,6 @@ Player::Player(float startX, float startY, float floorY, SDL_Texture* texture) {
     this->height = 64.0f;
     this->drag = 5.0f;
     this->gravity = 1000.0f;
-    this->floorY = floorY;
     this->jumpHeight = 400.0f;
     this->facingLeft = false;
 
@@ -30,7 +29,7 @@ void Player::update(float deltaTime) {
 
     if (x < 0.0f) { x = 0.0f; vx = 0.0f; }
     if (x + width > 640.0f) { x = 640.0f - width; vx = 0.0f; }
-    if (y > floorY - height) { y = floorY - height; vy = 0.0f; }
+    if (y > 450.0f - height) { y = 450.0f - height; vy = 0.0f; }
 
     if (facingLeft && vx > 0.0f) { facingLeft = false;  }
     else if (!facingLeft && vx < 0.0f) { facingLeft = true;  }

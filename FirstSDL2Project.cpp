@@ -3,12 +3,14 @@
 #include <SDL2/SDL_image.h>
 #include <iostream>
 #include <vector>
+#include <random>
 #include "Player.h"
 #include "Gun.h"
 #include "Healthbar.h"
 #include "Bullet.h"
 #include "Balloon.h"
 #include "Plane.h"
+#include "Healthbox.h"
 
 int main(int argc, char* argv[]) {
 
@@ -56,7 +58,7 @@ int main(int argc, char* argv[]) {
     SDL_Texture* playerTexture = SDL_CreateTextureFromSurface(renderer, playerSurface);
     SDL_FreeSurface(playerSurface);
 
-    Player* player = new Player(320.0f, 240.0f, floorY, playerTexture);
+    Player* player = new Player(320.0f, 240.0f, playerTexture);
 
     SDL_Surface* gunSurface = IMG_Load("Media/gun.png");
     SDL_Texture* gunTexture = SDL_CreateTextureFromSurface(renderer, gunSurface);
@@ -86,9 +88,14 @@ int main(int argc, char* argv[]) {
     SDL_Texture* planeTexture = SDL_CreateTextureFromSurface(renderer, planeSurface);
     SDL_FreeSurface(planeSurface);
 
+    SDL_Surface* healthboxSurface = IMG_Load("Media/health-box.png");
+    SDL_Texture* healthboxTexture = SDL_CreateTextureFromSurface(renderer, healthboxSurface);
+    SDL_FreeSurface(healthboxSurface);
+
     std::vector<Bullet> bullets;
     std::vector<Balloon> balloons;
     std::vector<Plane> planes;
+    std::vector<Healthbox> healthboxes;
 
     bool isRunning{ true };
     SDL_Event event;
@@ -100,6 +107,11 @@ int main(int argc, char* argv[]) {
     const Uint32 PLANE_SPAWN_COOLDOWN = 5000;
     Uint32 shootTimer = 0;
     const Uint32 SHOOT_RATE = 700;
+    Uint32 healthboxTimer = 0;
+    const Uint32 HEALTHBOX_COOLDOWN = 7000;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
     while (isRunning) {
         while (SDL_PollEvent(&event)) {
@@ -176,8 +188,18 @@ int main(int argc, char* argv[]) {
 
         planeSpawnTimer += frameTime;
         if (planeSpawnTimer >= PLANE_SPAWN_COOLDOWN) {
-            if (planes.size() < 2) { planes.push_back(Plane(320.0f, 240.0f, 0, player, planeTexture)); }
+            if (planes.size() < 2) { planes.push_back(Plane(0.0f, 200.0f, 0, player, planeTexture)); }
             planeSpawnTimer -= PLANE_SPAWN_COOLDOWN;
+        }
+
+        healthboxTimer += frameTime;
+        if (healthboxTimer >= HEALTHBOX_COOLDOWN) {
+            float minX = 40.0f;
+            float maxX = 640.0f;
+            std::uniform_real_distribution<float> dis(minX, maxX);
+            float randomX = dis(gen);
+            healthboxes.push_back(Healthbox(randomX, 0.0f, healthboxTexture));
+            healthboxTimer -= HEALTHBOX_COOLDOWN;
         }
 
         if (shootTimer < SHOOT_RATE) { shootTimer += frameTime; }
@@ -223,6 +245,11 @@ int main(int argc, char* argv[]) {
                 it->render(renderer);
                 ++it;
             }
+        }
+
+        for (auto it = healthboxes.begin(); it != healthboxes.end(); ++it) {
+            it->update(deltaTime);
+            it->render(renderer);
         }
 
         for (auto bIt = bullets.begin(); bIt != bullets.end(); ) {
@@ -283,6 +310,25 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        for (auto hIt = healthboxes.begin(); hIt != healthboxes.end(); ) {
+            float playerCenterX = player->x + (player->width / 2.0f);
+            float playerCenterY = player->y + (player->height / 2.0f);
+            float boxCenterX = hIt->x + (hIt->width / 2.0f);
+            float boxCenterY = hIt->y + (hIt->height / 2.0f);
+
+            float dx = boxCenterX - playerCenterX;
+            float dy = boxCenterY - playerCenterY;
+            float distance = std::sqrt(dx * dx + dy * dy);
+
+            if (distance < 25.0f && player->health < player->maxHealth) {
+                player->health += 1;
+                hIt = healthboxes.erase(hIt);
+            }
+            else {
+                ++hIt;
+            }
+        }
+
         healthbar->render(renderer);
 
         SDL_RenderPresent(renderer);
@@ -298,6 +344,7 @@ int main(int argc, char* argv[]) {
     if (planeTexture != nullptr) { SDL_DestroyTexture(planeTexture); }
     if (bulletTexture != nullptr) { SDL_DestroyTexture(bulletTexture); }
     if (healthbarTexture != nullptr) { SDL_DestroyTexture(healthbarTexture); }
+    if (healthboxTexture != nullptr) { SDL_DestroyTexture(healthboxTexture); }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
