@@ -7,6 +7,7 @@ Gun::Gun(Player* player, SDL_Texture* texture) {
     this->y = playerRef->y;
     this->width = 57.0f;
     this->height = 19.0f;
+    this->angle = 0.0f;
     this->texture = texture;
 }
 
@@ -17,7 +18,6 @@ void Gun::update() {
 
 void Gun::render(SDL_Renderer* renderer, Sint16 rightX, Sint16 rightY) {
     const Sint16 deadzone = 8000;
-    double angle = 0.0f;
 
     if (std::abs(rightX) > deadzone || std::abs(rightY) > deadzone) {
         float fx = static_cast<float>(rightX);

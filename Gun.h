@@ -6,6 +6,7 @@ class Gun {
 public:
     float x, y;
     float width, height;
+    double angle;
     Player* playerRef;
     SDL_Texture* texture;
 

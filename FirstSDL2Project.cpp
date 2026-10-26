@@ -1,8 +1,12 @@
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <iostream>
+#include <vector>
 #include "Player.h"
 #include "Gun.h"
+#include "Healthbar.h"
+#include "Bullet.h"
 
 int main(int argc, char* argv[]) {
 
@@ -21,7 +25,7 @@ int main(int argc, char* argv[]) {
         return 3;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Hello, SDL2!", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, screenWidth, screenHeight, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("SDL2 Bitzy Blitz", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, screenWidth, screenHeight, SDL_WINDOW_RESIZABLE);
     if (window == nullptr) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not create window: %s", SDL_GetError());
         IMG_Quit();
@@ -46,7 +50,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    SDL_Surface* playerSurface = IMG_Load("Media/horse-frames.png");
+    SDL_Surface* playerSurface = IMG_Load("Media/horse-sheet.png");
     SDL_Texture* playerTexture = SDL_CreateTextureFromSurface(renderer, playerSurface);
     SDL_FreeSurface(playerSurface);
 
@@ -58,10 +62,22 @@ int main(int argc, char* argv[]) {
 
     Gun* gun = new Gun(player, gunTexture);
 
+    SDL_Surface* bulletSurface = IMG_Load("Media/bullet-sheet.png");
+    SDL_Texture* bulletTexture = SDL_CreateTextureFromSurface(renderer, bulletSurface);
+    SDL_FreeSurface(bulletSurface);
+
+    SDL_Surface* healthbarSurface = IMG_Load("Media/health-sheet.png");
+    SDL_Texture* healthbarTexture = SDL_CreateTextureFromSurface(renderer, healthbarSurface);
+    SDL_FreeSurface(healthbarSurface);
+
+    Healthbar* healthbar = new Healthbar(10, 12, healthbarTexture);
+
     SDL_Surface* bgSurface = IMG_Load("Media/background.png");
     SDL_Texture* bgTexture = SDL_CreateTextureFromSurface(renderer, bgSurface);
     SDL_FreeSurface(bgSurface);
 
+    std::vector<Bullet> bullets;
+    bool r2Flag = false;
     bool isRunning{ true };
     SDL_Event event;
 
@@ -103,6 +119,34 @@ int main(int argc, char* argv[]) {
 
             rightX = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_RIGHTX);
             rightY = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_RIGHTY);
+
+            Sint16 r2Value = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+
+            if (r2Value > 1000 && !r2Flag) {
+                const float PI = 3.14159265f;
+                float radians = gun->angle * (PI / 180.0f);
+
+                float dx = std::cos(radians);
+                float dy = std::sin(radians);
+
+                float speed = 500.0f;
+                float startVX = dx * speed;
+                float startVY = dy * speed;
+
+                float gunSteps = 40.0f;
+                float playerCenterX = player->x + player->width / 2;
+                float playerCenterY = player->y + player->height / 2;
+                float startX = playerCenterX + dx * gunSteps;
+                float startY = playerCenterY + dy * gunSteps;
+
+                bullets.push_back(Bullet(startX, startY, startVX, startVY, gun->angle, 4, bulletTexture));
+
+                r2Flag = true;
+            }
+
+            if (r2Flag && r2Value < 1000) {
+                r2Flag = false;
+            }
         }
 
         Uint32 currentTime = SDL_GetTicks();
@@ -121,6 +165,17 @@ int main(int argc, char* argv[]) {
 
         player->render(renderer);
         gun->render(renderer, rightX, rightY);
+        healthbar->render(renderer);
+
+        for (auto it = bullets.begin(); it != bullets.end(); ) {
+            if (!it->update(deltaTime)) {
+                it = bullets.erase(it);
+            }
+            else {
+                it->render(renderer);
+                ++it;
+            }
+        }
 
         SDL_RenderPresent(renderer);
     }
